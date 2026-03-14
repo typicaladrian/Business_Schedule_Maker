@@ -1,24 +1,19 @@
 import os
-from backend.app.models import ScheduleRequestPayload
-from backend.scripts.test_data import payload as initial_payload
+from sqlmodel import SQLModel, create_engine, Session
+from backend.app.schema import Manager, Branch, EmployeeDB
 
-# This creates a file named 'db.json' right next to this script
-DB_FILE = os.path.join(os.path.dirname(__file__), "db.json")
+# Create a local SQLite database file named 'app.db'
+sqlite_file_name = "app.db"
+sqlite_url = f"sqlite:///{os.path.join(os.path.dirname(__file__), sqlite_file_name)}"
 
-def load_db() -> ScheduleRequestPayload:
-    """Loads the database from the JSON file. If it doesn't exist, it creates it using your test_data."""
-    if not os.path.exists(DB_FILE):
-        print("📁 No database found. Creating a new one from test_data...")
-        save_db(initial_payload)
-        return initial_payload
-        
-    # Read the JSON file and convert it back into our Pydantic Python object
-    with open(DB_FILE, "r") as f:
-        json_data = f.read()
-        return ScheduleRequestPayload.model_validate_json(json_data)
+# The Engine is the core connection point to the database
+engine = create_engine(sqlite_url, echo=True)
 
-def save_db(payload: ScheduleRequestPayload):
-    """Saves the current Python state directly to the JSON file on your hard drive."""
-    with open(DB_FILE, "w") as f:
-        # Write the data beautifully indented so it's easy for humans to read
-        f.write(payload.model_dump_json(indent=2))
+def create_db_and_tables():
+    """Tells SQLModel to inspect our schema and build the actual SQL tables."""
+    SQLModel.metadata.create_all(engine)
+
+def get_session():
+    """A helper function we will use in FastAPI endpoints to talk to the DB."""
+    with Session(engine) as session:
+        yield session

@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 
+import { UserButton, Show, SignInButton } from "@clerk/nextjs";
+
 export default function Home() {
   const [schedule, setSchedule] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -115,13 +117,21 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-blue-900">Branch Schedule Manager</h1>
               <p className="text-gray-500 mt-1">AI-Powered Optimization Engine</p>
             </div>
-            <button 
-              onClick={fetchSchedule}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all disabled:bg-gray-400"
-            >
-              {loading ? "Generating..." : "Generate Schedule"}
-            </button>
+            
+            {/* NEW: Clerk Authentication Buttons (Updated for the new version!) */}
+            <div className="flex items-center gap-4">
+              <Show when="signed-out">
+                <SignInButton mode="modal">
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all">
+                    Manager Login
+                  </button>
+                </SignInButton>
+              </Show>
+              
+              <Show when="signed-in">
+                <UserButton />
+              </Show>
+            </div>
           </header>
 
           {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
