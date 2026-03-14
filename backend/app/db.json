@@ -1,0 +1,689 @@
+{
+  "week_start_date": "2026-03-16",
+  "employees": [
+    {
+      "id": "emp_01",
+      "name": "Adrian",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo A"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_02",
+      "name": "Gilda",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo B",
+        "Vault"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_03",
+      "name": "Hefzi",
+      "home_location": "Paramus",
+      "is_full_time": false,
+      "skills": [
+        "Combo A"
+      ],
+      "min_hours_per_week": 25.0,
+      "max_hours_per_week": 30.0,
+      "max_days_per_week": 4,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_04",
+      "name": "Kristina",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo B",
+        "Vault"
+      ],
+      "min_hours_per_week": 20.0,
+      "max_hours_per_week": 30.0,
+      "max_days_per_week": 5,
+      "required_work_days": [],
+      "unavailable_days": [
+        "Saturday"
+      ]
+    },
+    {
+      "id": "emp_05",
+      "name": "Melissa",
+      "home_location": "Paramus",
+      "is_full_time": false,
+      "skills": [
+        "Combo B"
+      ],
+      "min_hours_per_week": 25.0,
+      "max_hours_per_week": 30.0,
+      "max_days_per_week": 4,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_06",
+      "name": "Khi",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo B"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_07",
+      "name": "Nick",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo B",
+        "ATM"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [
+        "Monday"
+      ],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_08",
+      "name": "Alma",
+      "home_location": "Paramus",
+      "is_full_time": true,
+      "skills": [
+        "Combo A"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_09",
+      "name": "Eva",
+      "home_location": "Ridgewood",
+      "is_full_time": false,
+      "skills": [
+        "Combo B"
+      ],
+      "min_hours_per_week": 15.0,
+      "max_hours_per_week": 21.0,
+      "max_days_per_week": 4,
+      "required_work_days": [],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_10",
+      "name": "Joe P",
+      "home_location": "Ridgewood",
+      "is_full_time": true,
+      "skills": [
+        "Combo A",
+        "Vault"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [
+        "Saturday"
+      ],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_11",
+      "name": "Jose",
+      "home_location": "Ridgewood",
+      "is_full_time": true,
+      "skills": [
+        "Combo B",
+        "Vault"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [
+        "Saturday"
+      ],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_12",
+      "name": "Tan",
+      "home_location": "Ridgewood",
+      "is_full_time": true,
+      "skills": [
+        "Combo A",
+        "ATM"
+      ],
+      "min_hours_per_week": 38.0,
+      "max_hours_per_week": 40.0,
+      "max_days_per_week": 5,
+      "required_work_days": [
+        "Monday"
+      ],
+      "unavailable_days": []
+    },
+    {
+      "id": "emp_13",
+      "name": "Laurence",
+      "home_location": "Ridgewood",
+      "is_full_time": false,
+      "skills": [
+        "Combo A"
+      ],
+      "min_hours_per_week": 25.0,
+      "max_hours_per_week": 30.0,
+      "max_days_per_week": 4,
+      "required_work_days": [],
+      "unavailable_days": []
+    }
+  ],
+  "daily_requirements": [
+    {
+      "day_of_week": "Monday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Monday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Tuesday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Tuesday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Wednesday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Wednesday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Thursday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Thursday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Friday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Friday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "open_800_1730",
+          "start_time": "08:00",
+          "end_time": "17:30",
+          "paid_minutes": 540,
+          "is_opening_shift": true
+        },
+        {
+          "id": "mid_815_1730",
+          "start_time": "08:15",
+          "end_time": "17:30",
+          "paid_minutes": 525,
+          "is_opening_shift": false
+        },
+        {
+          "id": "mid_830_1730",
+          "start_time": "08:30",
+          "end_time": "17:30",
+          "paid_minutes": 510,
+          "is_opening_shift": false
+        },
+        {
+          "id": "short_800_1430",
+          "start_time": "08:00",
+          "end_time": "14:30",
+          "paid_minutes": 360,
+          "is_opening_shift": true
+        },
+        {
+          "id": "pt_830_1530",
+          "start_time": "08:30",
+          "end_time": "15:30",
+          "paid_minutes": 390,
+          "is_opening_shift": false
+        }
+      ]
+    },
+    {
+      "day_of_week": "Saturday",
+      "location": "Paramus",
+      "min_headcount": 5,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "sat_830_1230",
+          "start_time": "08:30",
+          "end_time": "12:30",
+          "paid_minutes": 240,
+          "is_opening_shift": true
+        }
+      ]
+    },
+    {
+      "day_of_week": "Saturday",
+      "location": "Ridgewood",
+      "min_headcount": 3,
+      "requires_combo_a_open": 1,
+      "requires_combo_b_open": 1,
+      "requires_vault": 1,
+      "allowed_shifts": [
+        {
+          "id": "sat_830_1230",
+          "start_time": "08:30",
+          "end_time": "12:30",
+          "paid_minutes": 240,
+          "is_opening_shift": true
+        }
+      ]
+    }
+  ]
+}
