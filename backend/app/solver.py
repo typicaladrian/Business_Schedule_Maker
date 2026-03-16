@@ -101,6 +101,14 @@ def generate_schedule(payload: ScheduleRequestPayload):
                 combo_b_openers.append(works[(emp.id, day, shift.id)])
         model.Add(sum(combo_b_openers) >= req.requires_combo_b_open)
 
+        # ATM Opener
+        atm_staff = [emp for emp in available_staff if Skill.ATM in emp.skills]
+        atm_openers = []
+        for emp in atm_staff:
+            for shift in opening_shifts:
+                atm_openers.append(works[(emp.id, day, shift.id)])
+        model.Add(sum(atm_openers) >= req.requires_atm_open)
+
     print("DEBUG 5: Launching the C++ Solver...")
     solver = cp_model.CpSolver()
     

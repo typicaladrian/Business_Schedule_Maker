@@ -1,15 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.models import Employee, DailyRequirement, ShiftTemplate, Location, ScheduleRequestPayload
+from backend.app.models import Employee, DailyRequirement, ShiftTemplate, Location, ScheduleRequestPayload, Skill
 from backend.app.solver import generate_schedule
 from pydantic import BaseModel
-# from backend.app.ai_agent import process_chat_message
 import traceback
 from contextlib import asynccontextmanager
 from backend.app.database import create_db_and_tables
 from pydantic import BaseModel
 from sqlmodel import Session, select
-from fastapi import Depends
 from backend.app.schema import Manager, Branch, EmployeeDB
 from backend.app.database import get_session
 
@@ -98,6 +96,25 @@ def get_branches(manager_id: int, session: Session = Depends(get_session)):
     return {"branches": branches}
 
 # ===============================================================================
+# BRANCH SETTINGS ENDPOINT
+
+class BranchSettingsPayload(BaseModel):
+    min_daily_headcount: int
+
+@app.put("/api/branches/{branch_id}/settings")
+def update_branch_settings(branch_id: int, payload: BranchSettingsPayload, session: Session = Depends(get_session)):
+    """Updates the specific settings for a branch."""
+    branch = session.get(Branch, branch_id)
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+        
+    branch.min_daily_headcount = payload.min_daily_headcount
+    session.add(branch)
+    session.commit()
+    session.refresh(branch)
+    return branch
+
+# ===============================================================================
 
 class EmployeeCreatePayload(BaseModel):
     name: str
@@ -105,6 +122,7 @@ class EmployeeCreatePayload(BaseModel):
     min_hours: int
     max_hours: int
     branch_id: int
+    skills: str = ""
 
 @app.post("/api/employees")
 def create_employee(payload: EmployeeCreatePayload, session: Session = Depends(get_session)):
@@ -114,7 +132,8 @@ def create_employee(payload: EmployeeCreatePayload, session: Session = Depends(g
         is_full_time=payload.is_full_time,
         min_hours=payload.min_hours,
         max_hours=payload.max_hours,
-        branch_id=payload.branch_id
+        branch_id=payload.branch_id,
+        skills=payload.skills
     )
     session.add(new_employee)
     session.commit()
@@ -135,6 +154,7 @@ class EmployeeUpdatePayload(BaseModel):
     is_full_time: bool
     min_hours: int
     max_hours: int
+    skills: str = ""
 
 @app.put("/api/employees/{employee_id}")
 def update_employee(employee_id: int, payload: EmployeeUpdatePayload, session: Session = Depends(get_session)):
@@ -147,6 +167,7 @@ def update_employee(employee_id: int, payload: EmployeeUpdatePayload, session: S
     emp.is_full_time = payload.is_full_time
     emp.min_hours = payload.min_hours
     emp.max_hours = payload.max_hours
+    emp.skills = payload.skills
     
     session.add(emp)
     session.commit()
@@ -190,12 +211,21 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
     # 3. Translate SQL Employees -> Pydantic Employees
     pydantic_employees = []
     for emp in employees:
+        # Translate comma-separated string back to Skill Enums
+        parsed_skills = []
+        if emp.skills:
+            for s in emp.skills.split(","):
+                try:
+                    parsed_skills.append(Skill(s.strip()))
+                except ValueError:
+                    continue # Skip if there's a typo in the DB
+
         pydantic_employees.append(Employee(
             id=str(emp.id),
             name=emp.name,
             home_location=loc_enum,
             is_full_time=emp.is_full_time,
-            skills=[], 
+            skills=parsed_skills, # THE FIX: Hand the solver the real skills!
             min_hours_per_week=float(emp.min_hours),
             max_hours_per_week=float(emp.max_hours),
             max_days_per_week=5,
@@ -204,24 +234,38 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
         ))
 
     # 4. Define Default Shifts (The times people are allowed to work)
-    default_shifts = [
-        ShiftTemplate(id="open", start_time="08:00", end_time="17:00", paid_minutes=480, is_opening_shift=True),
-        ShiftTemplate(id="mid", start_time="09:00", end_time="18:00", paid_minutes=480, is_opening_shift=False)
+    # Note: Paid minutes subtract a 30-minute unpaid lunch where applicable
+    weekday_shifts = [
+        # 8:00 AM - 5:30 PM (9 paid hours -> 540 minutes)
+        ShiftTemplate(id="open_800", start_time="08:00", end_time="17:30", paid_minutes=540, is_opening_shift=True),
+        
+        # 8:15 AM - 5:30 PM (8.75 paid hours -> 525 minutes)
+        ShiftTemplate(id="mid_815", start_time="08:15", end_time="17:30", paid_minutes=525, is_opening_shift=False),
+        
+        # 8:30 AM - 5:30 PM (8.5 paid hours -> 510 minutes)
+        ShiftTemplate(id="mid_830", start_time="08:30", end_time="17:30", paid_minutes=510, is_opening_shift=False)
+    ]
+    
+    # Saturday has exactly one shift, and it acts as the opening shift!
+    # 8:30 AM - 12:30 PM (4 paid hours -> 240 minutes)
+    saturday_shifts = [
+        ShiftTemplate(id="sat_open_830", start_time="08:30", end_time="12:30", paid_minutes=240, is_opening_shift=True)
     ]
 
     # 5. Define Daily Requirements for the Solver
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] 
     daily_reqs = []
+    
     for d in days:
         daily_reqs.append(DailyRequirement(
             day_of_week=d,
             location=loc_enum,
-            min_headcount=2, # Need at least 2 people a day
-            # Setting these to 0 temporarily since we haven't assigned skills in the UI yet!
-            requires_combo_a_open=0, 
-            requires_combo_b_open=0,
-            requires_vault=0,
-            allowed_shifts=default_shifts
+            min_headcount=branch.min_daily_headcount,
+            requires_combo_a_open=1,
+            requires_combo_b_open=1,
+            requires_vault=1, 
+            requires_atm_open=1 if d == "Monday" else 0, # Only demand an ATM opener on Monday!
+            allowed_shifts=saturday_shifts if d == "Saturday" else weekday_shifts
         ))
 
     # 6. Build the final payload and run the solver!
