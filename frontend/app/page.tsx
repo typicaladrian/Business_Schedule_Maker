@@ -18,6 +18,9 @@ const formatTime = (time24: string) => {
 };
 
 export default function Home() {
+  // Point to the cloud backend in production, but use local if running on your machine
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
   const [schedule, setSchedule] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,7 +88,7 @@ export default function Home() {
     if (isSignedIn && user) {
       const syncManager = async () => {
         try {
-          const response = await fetch("http://127.0.0.1:8000/api/managers/sync", {
+          const response = await fetch(`${API_URL}/api/managers/sync`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -100,7 +103,7 @@ export default function Home() {
             console.log("Successfully synced manager. DB ID:", data.manager_id);
             
             // Fetch their branches immediately!
-            const branchRes = await fetch(`http://127.0.0.1:8000/api/branches/${data.manager_id}`);
+            const branchRes = await fetch(`${API_URL}/api/branches/${data.manager_id}`);
             if (branchRes.ok) {
               const branchData = await branchRes.json();
               setBranches(branchData.branches);
@@ -126,7 +129,7 @@ export default function Home() {
   useEffect(() => {
     if (activeBranch) {
       const fetchRoster = async () => {
-        const res = await fetch(`http://127.0.0.1:8000/api/branches/${activeBranch.id}/employees`);
+        const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/employees`);
         if (res.ok) {
           const data = await res.json();
           setRoster(data.employees);
@@ -139,7 +142,7 @@ export default function Home() {
   // Fetch the live employee rules from the database
   const fetchEmployees = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/employees");
+      const response = await fetch(`${API_URL}/api/employees`);
       if (response.ok) {
         const data = await response.json();
         setEmployees(data.employees);
@@ -153,7 +156,7 @@ export default function Home() {
   const fetchRules = async () => {
     if (!activeBranch) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/branches/${activeBranch.id}/rules`);
+      const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/rules`);
       if (res.ok) {
         const data = await res.json();
         setCustomRules(data.rules);
@@ -185,7 +188,7 @@ export default function Home() {
     setSuccessMsg(""); // Clear previous success messages
     
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/branches/${activeBranch.id}/schedule`);
+      const response = await fetch(`${API_URL}/api/branches/${activeBranch.id}/schedule`);
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || "Failed to generate schedule.");
@@ -260,7 +263,7 @@ export default function Home() {
     setIsTyping(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/chat", {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -563,7 +566,7 @@ export default function Home() {
                   onClick={async () => {
                     if (!newBranchName.trim()) return;
                     setIsCreatingBranch(true);
-                    const res = await fetch("http://127.0.0.1:8000/api/branches", {
+                    const res = await fetch(`${API_URL}/api/branches`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ name: newBranchName, manager_id: managerId })
@@ -626,7 +629,7 @@ export default function Home() {
                   </div>
                   <button 
                     onClick={async () => {
-                      const res = await fetch(`http://127.0.0.1:8000/api/branches/${activeBranch.id}/settings`, {
+                      const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/settings`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ min_daily_headcount: branchHeadcount })
@@ -684,7 +687,7 @@ export default function Home() {
                     onClick={async () => {
                       if (!newEmpName.trim()) return;
                       setIsHiring(true);
-                      const res = await fetch("http://127.0.0.1:8000/api/employees", {
+                      const res = await fetch(`${API_URL}/api/employees`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ 
@@ -819,7 +822,7 @@ export default function Home() {
                                 <td className="px-6 py-2 text-right">
                                   <button 
                                     onClick={async () => {
-                                      const res = await fetch(`http://127.0.0.1:8000/api/employees/${emp.id}`, {
+                                      const res = await fetch(`${API_URL}/api/employees/${emp.id}`, {
                                         method: "PUT",
                                         headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({
@@ -883,7 +886,7 @@ export default function Home() {
                                 <button 
                                   onClick={async () => {
                                     if (confirm(`Are you sure you want to fire ${emp.name}?`)) {
-                                      const res = await fetch(`http://127.0.0.1:8000/api/employees/${emp.id}`, { method: "DELETE" });
+                                      const res = await fetch(`${API_URL}/api/employees/${emp.id}`, { method: "DELETE" });
                                       if (res.ok) {
                                         setRoster(roster.filter(r => r.id !== emp.id));
                                       }
@@ -966,7 +969,7 @@ export default function Home() {
                         </div>
                         <button 
                           onClick={async () => {
-                            await fetch(`http://127.0.0.1:8000/api/rules/${rule.id}`, { method: "DELETE" });
+                            await fetch(`${API_URL}/api/rules/${rule.id}`, { method: "DELETE" });
                             fetchRules(); // Refresh the list!
                           }}
                           className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"
