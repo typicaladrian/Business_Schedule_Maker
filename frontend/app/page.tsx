@@ -4,6 +4,19 @@ import { useState, useMemo, useEffect } from "react";
 
 import { UserButton, Show, SignInButton, useUser } from "@clerk/nextjs";
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+// Time formatting helper (Converts "17:30" to "5:30 PM")
+const formatTime = (time24: string) => {
+  if (!time24) return "";
+  const [hourStr, minute] = time24.split(":");
+  const hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const formattedHour = hour % 12 || 12;
+  return `${formattedHour}:${minute} ${ampm}`;
+};
+
 export default function Home() {
   const [schedule, setSchedule] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -42,6 +55,21 @@ export default function Home() {
   // Branch Settings States
   const [showSettings, setShowSettings] = useState(false);
   const [branchHeadcount, setBranchHeadcount] = useState(5);
+
+  // AI Rules State
+  const [customRules, setCustomRules] = useState<any[]>([]);
+
+  // Welcome Modal State
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Trigger the modal once per session when the page loads
+  useEffect(() => {
+    const hasSeenModal = sessionStorage.getItem("hasSeenWelcome");
+    if (!hasSeenModal) {
+      setShowWelcome(true);
+      sessionStorage.setItem("hasSeenWelcome", "true");
+    }
+  }, []);
   
   const availableSkills = ["Combo A", "Combo B", "Vault", "ATM"];
   const toggleSkill = (skill: string, currentSkills: string[], setSkillsFn: (s: string[]) => void) => {
@@ -52,7 +80,7 @@ export default function Home() {
     }
   };
 
-  // NEW: Sync with the Python backend whenever the user logs in
+  // Sync with the Python backend whenever the user logs in
   useEffect(() => {
     if (isSignedIn && user) {
       const syncManager = async () => {
@@ -94,7 +122,7 @@ export default function Home() {
     }
   }, [isSignedIn, user]);
 
-  // NEW: Fetch Roster when active branch changes
+  // Fetch Roster when active branch changes
   useEffect(() => {
     if (activeBranch) {
       const fetchRoster = async () => {
@@ -108,7 +136,7 @@ export default function Home() {
     }
   }, [activeBranch]);
 
-  // NEW: Fetch the live employee rules from the database
+  // Fetch the live employee rules from the database
   const fetchEmployees = async () => {
     try {
       const response = await fetch("http://127.0.0.1:8000/api/employees");
@@ -120,6 +148,26 @@ export default function Home() {
       console.error("Could not load employee data.");
     }
   };
+
+  // Fetch Custom Rules when the branch changes
+  const fetchRules = async () => {
+    if (!activeBranch) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/branches/${activeBranch.id}/rules`);
+      if (res.ok) {
+        const data = await res.json();
+        setCustomRules(data.rules);
+      }
+    } catch (err) {
+      console.error("Failed to load custom rules.");
+    }
+  };
+
+  useEffect(() => {
+    if (activeBranch) {
+      fetchRules();
+    }
+  }, [activeBranch]);
 
   // Run once when the page loads
   useEffect(() => {
@@ -199,6 +247,12 @@ export default function Home() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
+    
+    // THE FIX: Ensure they have selected a branch before chatting!
+    if (!activeBranch) {
+      setMessages(prev => [...prev, { role: "ai", content: "Please select a branch first so I know who we are scheduling!" }]);
+      return;
+    }
 
     const userText = chatInput;
     setMessages(prev => [...prev, { role: "user", content: userText }]);
@@ -209,14 +263,17 @@ export default function Home() {
       const response = await fetch("http://127.0.0.1:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({ 
+          message: userText,
+          branch_id: activeBranch.id // THE FIX: Tell the AI which branch we are looking at!
+        })
       });
       
       const data = await response.json();
       setMessages(prev => [...prev, { role: "ai", content: data.reply }]);
       
-      // NEW: Always refresh the employee rules panel after the AI does something!
-      fetchEmployees();
+      // Refresh the rules dashboard
+      fetchRules();
 
       if (data.reply.toLowerCase().includes("generated") || data.reply.toLowerCase().includes("schedule")) {
         fetchSchedule();
@@ -227,6 +284,80 @@ export default function Home() {
     } finally {
       setIsTyping(false);
     }
+  };
+
+  // UPGRADED: Export Schedule to Formatted PDF
+  const exportScheduleToPDF = () => {
+    if (!schedule || Object.keys(schedule).length === 0) {
+      alert("No schedule available to export. Please generate one first!");
+      return;
+    }
+
+    const doc = new jsPDF();
+    const branchName = activeBranch?.name || "Branch";
+    
+    // --- MAIN HEADER ---
+    doc.setFontSize(18);
+    doc.setTextColor(30, 58, 138); 
+    doc.text(`${branchName} - Weekly Schedule`, 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Generated by AI Optimization Engine, for you.", 14, 28);
+
+    const daysOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    
+    // We will track the vertical position so we know where to draw the next day's table
+    let currentY = 40; 
+
+    // --- DRAW A SEPARATE TABLE FOR EACH DAY ---
+    daysOrder.forEach(day => {
+      if (schedule[day] && schedule[day].length > 0) {
+        
+        // Safety check: If we are too close to the bottom of the page, add a new page!
+        if (currentY > 250) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        // 1. Draw the Day Sub-Header
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42); // Dark slate
+        doc.setFont("helvetica", "bold");
+        doc.text(day, 14, currentY);
+        currentY += 6; // Add a little space between the text and the table
+
+        // 2. Build the data specifically for this day (and REMOVE the emoji!)
+        const dayData = schedule[day].map((shift: any) => [
+          shift.employee_name,
+          `${formatTime(shift.start_time)} - ${formatTime(shift.end_time)}`,
+          `${shift.paid_hours} hrs`,
+          shift.is_opening ? "Yes" : "-" 
+        ]);
+
+        // 3. Draw the Mini-Table
+        autoTable(doc, {
+          startY: currentY,
+          head: [["Employee", "Shift Time", "Paid Hours", "Opener"]],
+          body: dayData,
+          theme: 'grid',
+          headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' }, // Indigo-600
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          styles: { fontSize: 10, cellPadding: 4 },
+          columnStyles: {
+            0: { fontStyle: 'bold', textColor: [51, 65, 85] } // Bold employee names
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        // 4. Push the Y coordinate down for the next day! 
+        // (We grab the final Y position of the table we just drew and add a 15px gap)
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+    });
+
+    // --- TRIGGER DOWNLOAD ---
+    doc.save(`${branchName}_Weekly_Schedule.pdf`);
   };
 
   const employeeTotals = useMemo(() => {
@@ -244,29 +375,100 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-8 text-slate-800">
+      
+      {/* --- WELCOME & ABOUT ME MODAL (PROFESSIONAL VERSION) --- */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-gray-100 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-300">
+            
+            {/* Header - Sleek Dark Slate, No Emoji */}
+            <div className="bg-slate-800 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white tracking-wide">
+                Welcome to Capital One's AI Scheduler
+              </h2>
+              <button 
+                onClick={() => setShowWelcome(false)}
+                className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div className="p-8 text-slate-700 space-y-6">
+              
+              {/* Profile Section: Headshot + Bio */}
+              <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+                
+                {/* Headshot Placeholder */}
+                <div className="shrink-0">
+                  <div className="w-28 h-28 rounded-full bg-slate-100 border-4 border-white shadow-md overflow-hidden flex items-center justify-center relative group">
+                    <img src="/headshot2025.jpg" alt="Adrian Rodriguez" className="w-full h-full object-cover" />
+                  </div>
+                </div>
+
+                {/* Bio Text */}
+                <div className="space-y-3 text-center sm:text-left flex-1">
+                  <p className="font-semibold text-2xl text-slate-900">
+                    Hi, I'm Adrian Rodriguez.
+                  </p>
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Thank you for checking out this project. I built this AI-powered scheduling engine to solve complex, real-world operational bottlenecks using mathematically optimized constraints and deterministic solvers.
+                  </p>
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    I hold a BS in Computer Science from Rensselaer Polytechnic Institute and am currently pursuing my MS in Cybersecurity and Information Assurance at WGU. I am actively seeking roles as a Cyber Security Analyst or in Software Engineering.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Highlight Box - Clean Professional Badges */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">My Focus Areas</h3>
+                <div className="flex flex-wrap gap-2.5">
+                  <span className="bg-white border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded shadow-sm">Software Development</span>
+                  <span className="bg-white border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded shadow-sm">Security Operations (SOC)</span>
+                  <span className="bg-white border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded shadow-sm">Incident Response</span>
+                  <span className="bg-white border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded shadow-sm">CompTIA CySA+ / ISC² CC</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer / Call to Action */}
+            <div className="bg-slate-100 border-t border-slate-200 px-8 py-5 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex gap-3 w-full sm:w-auto">
+                <a href="mailto:arodr223@outlook.com" className="flex-1 sm:flex-none text-center bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-2 px-5 rounded-lg text-sm shadow-sm transition-colors">
+                  Email Me
+                </a>
+                <a href="https://www.linkedin.com/in/rpiarodriguez/" target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none text-center bg-[#0A66C2] hover:bg-[#004182] text-white font-medium py-2 px-5 rounded-lg text-sm shadow-sm transition-colors">
+                  LinkedIn
+                </a>
+              </div>
+              <button 
+                onClick={() => setShowWelcome(false)}
+                className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 px-8 rounded-lg text-sm shadow-sm transition-colors"
+              >
+                Explore the App &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -------------------------------- */}
+
       <div className="max-w-7xl mx-auto flex gap-8">
         
         {/* LEFT COLUMN: Schedule View */}
         <div className="flex-1">
-          <header className="flex items-center justify-between mb-8">
+          {/* --- MAIN HEADER (Back to normal, no sticky!) --- */}
+          <header className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-3xl font-bold text-blue-900">Branch Schedule Manager</h1>
               <p className="text-gray-500 mt-1">AI-Powered Optimization Engine</p>
             </div>
             
             <div className="flex items-center gap-4">
-              {/* THE MISSING BUTTON IS BACK! */}
-              <Show when="signed-in">
-                <button 
-                  onClick={fetchSchedule}
-                  disabled={loading || !activeBranch}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all disabled:bg-gray-400"
-                >
-                  {loading ? "Generating..." : "Generate Schedule"}
-                </button>
-              </Show>
-
-              {/* Clerk Authentication Buttons */}
+              {/* Clerk Login/Profile (Kept cleanly at the top) */}
               <Show when="signed-out">
                 <SignInButton mode="modal">
                   <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all">
@@ -280,6 +482,35 @@ export default function Home() {
               </Show>
             </div>
           </header>
+
+          {/* --- THE DETACHED FLOATING PILL --- */}
+          <Show when="signed-in">
+            {/* The wrapper has pointer-events-none so it doesn't block you from clicking things underneath it! */}
+            <div className="sticky top-6 z-40 flex justify-end mb-6 pointer-events-none">
+              
+              {/* The glassmorphism pill (pointer-events-auto restores clicking for the buttons) */}
+              <div className="flex gap-3 bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-slate-200 pointer-events-auto transition-all">
+                
+                <button
+                  onClick={exportScheduleToPDF}
+                  disabled={!schedule || Object.keys(schedule).length === 0}
+                  className="bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 font-semibold py-2 px-4 rounded-xl shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+                >
+                  <span>📄</span> Export to PDF
+                </button>
+
+                <button 
+                  onClick={fetchSchedule}
+                  disabled={loading || !activeBranch}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-xl shadow-sm transition-colors disabled:bg-gray-400 flex items-center gap-2 text-sm"
+                >
+                  {loading ? <span className="animate-spin text-lg">⏳</span> : <span>✨</span>}
+                  {loading ? "Generating..." : "Generate Schedule"}
+                </button>
+                
+              </div>
+            </div>
+          </Show>
 
           {/* --- NOTIFICATION BANNERS --- */}
           {error && (
@@ -719,22 +950,42 @@ export default function Home() {
               {/* Divider */}
               <div className="hidden md:block w-px bg-gray-200"></div>
 
-              {/* Right Column: AI Custom Rules Placeholder */}
+              {/* Right Column: AI Custom Rules */}
               <div className="flex-1">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2 flex items-center gap-1.5">
                   ✨ AI Custom Overrides
                 </h3>
                 
-                {/* NOTE: We will map over a state variable here later when we connect the AI! 
-                  For now, we show a clean empty state.
-                */}
-                <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center h-32 text-center">
-                  <span className="text-slate-400 mb-1">🤖</span>
-                  <p className="text-sm font-medium text-slate-500">No custom rules active.</p>
-                  <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
-                    Use the AI Assistant to add temporary constraints (e.g., "Give Gilda Friday off").
-                  </p>
-                </div>
+                {customRules.length > 0 ? (
+                  <ul className="space-y-2">
+                    {customRules.map((rule, idx) => (
+                      <li key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2.5 text-sm text-slate-700 font-medium">
+                          <span className="text-blue-500 bg-blue-100 p-1 rounded">✨</span>
+                          <span>{rule.description}</span>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            await fetch(`http://127.0.0.1:8000/api/rules/${rule.id}`, { method: "DELETE" });
+                            fetchRules(); // Refresh the list!
+                          }}
+                          className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"
+                          title="Delete Rule"
+                        >
+                          ❌
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center h-32 text-center">
+                    <span className="text-slate-400 mb-1 text-xl">🤖</span>
+                    <p className="text-sm font-medium text-slate-500">No custom rules active.</p>
+                    <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
+                      Use the AI Assistant to add temporary constraints (e.g., "Give Kristina Saturday off").
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -827,7 +1078,7 @@ export default function Home() {
                               </div>
                             </td>
                             <td className="px-6 py-3 text-slate-600 font-medium">
-                              {shift.start_time} - {shift.end_time}
+                              {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                             </td>
                             <td className="px-6 py-3 text-slate-600 font-medium">{shift.paid_hours} hrs</td>
                           </tr>

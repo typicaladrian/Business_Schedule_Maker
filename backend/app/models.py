@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 from enum import Enum
 
 class Location(str, Enum):
@@ -31,6 +31,7 @@ class ShiftTemplate(BaseModel):
     end_time: str
     paid_minutes: int # e.g., 9 hours = 540 mins (pre-calculated with lunch deduction if applicable)
     is_opening_shift: bool = False
+    is_closing_shift: bool = False
 
 # UPDATED: Now includes the specific shifts available for this day
 class DailyRequirement(BaseModel):
@@ -41,9 +42,11 @@ class DailyRequirement(BaseModel):
     requires_combo_b_open: int = 1
     requires_vault: int = 1
     requires_atm_open: int = 0  # Defaults to 0 so we don't accidentally require it every day!
+    max_openers: Optional[int] = None #Defaults to None (unlimited) unless the AI sets a cap!
     allowed_shifts: List[ShiftTemplate] = Field(default_factory=list)
 
 class ScheduleRequestPayload(BaseModel):
     week_start_date: str
     employees: List[Employee]
     daily_requirements: List[DailyRequirement]
+    max_consecutive_openings: int = 2

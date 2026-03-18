@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 from backend.app.models import ScheduleRequestPayload, Skill
+import random
 
 def generate_schedule(payload: ScheduleRequestPayload):
     print("DEBUG 1: Initializing model...")
@@ -69,6 +70,25 @@ def generate_schedule(payload: ScheduleRequestPayload):
             if unavail_day in unique_days:
                 model.Add(worked_day[(emp.id, unavail_day)] == 0)
 
+        # 4. NEW: Dynamic Consecutive Openings Limit (Iterative Relaxation)
+        if len(unique_days) > payload.max_consecutive_openings:
+            # Create rolling windows (e.g., Mon-Tue-Wed, then Tue-Wed-Thu)
+            for start_day_idx in range(len(unique_days) - payload.max_consecutive_openings):
+                rolling_window = []
+                
+                # Gather all opening shifts for this specific block of days
+                for offset in range(payload.max_consecutive_openings + 1):
+                    day = unique_days[start_day_idx + offset]
+                    req = get_req_for_emp_day(emp, day)
+                    if req:
+                        for shift in req.allowed_shifts:
+                            if getattr(shift, 'is_opening_shift', False):
+                                rolling_window.append(works[(emp.id, day, shift.id)])
+                
+                # MATH ENGINE STRICT LIMIT: You cannot open every day in this window!
+                if rolling_window:
+                    model.Add(sum(rolling_window) <= payload.max_consecutive_openings)
+
     print("DEBUG 4: Adding Location & Skill constraints...")
     for req in payload.daily_requirements:
         day = req.day_of_week
@@ -108,6 +128,46 @@ def generate_schedule(payload: ScheduleRequestPayload):
             for shift in opening_shifts:
                 atm_openers.append(works[(emp.id, day, shift.id)])
         model.Add(sum(atm_openers) >= req.requires_atm_open)
+
+        # Closing Procedure Constraint
+        closing_shifts = [shift for shift in req.allowed_shifts if getattr(shift, 'is_closing_shift', False)]
+        
+        if closing_shifts:
+            closing_staff = []
+            for emp in available_staff:
+                for shift in closing_shifts:
+                    closing_staff.append(works[(emp.id, day, shift.id)])
+            
+            # MATH ENGINE STRICT LIMIT: The number of closers must be >= (Minimum Daily Headcount - 1)
+            model.Add(sum(closing_staff) >= (req.min_headcount - 1))
+
+        # AI Custom Cap on Openers
+        if req.max_openers is not None:
+            all_openers_on_day = []
+            for emp in available_staff:
+                for shift in opening_shifts:
+                    all_openers_on_day.append(works[(emp.id, day, shift.id)])
+            
+            # MATH ENGINE STRICT LIMIT: The sum of all people working opening shifts cannot exceed the cap.
+            model.Add(sum(all_openers_on_day) <= req.max_openers)
+
+    print("DEBUG 4.5: Adding Random Lottery Objective for Fair Distribution...")
+    objective_terms = []
+    
+    for emp in employees:
+        for day in unique_days:
+            req = get_req_for_emp_day(emp, day)
+            if req:
+                for shift in req.allowed_shifts:
+                    # We only care about randomizing the Openers right now
+                    if getattr(shift, 'is_opening_shift', False):
+                        # Assign a random score (1 to 100) to this specific person on this specific day
+                        random_weight = random.randint(1, 100)
+                        objective_terms.append(works[(emp.id, day, shift.id)] * random_weight)
+    
+    # MATH ENGINE OBJECTIVE: Try to get the highest random score possible!
+    if objective_terms:
+        model.Maximize(sum(objective_terms))
 
     print("DEBUG 5: Launching the C++ Solver...")
     solver = cp_model.CpSolver()

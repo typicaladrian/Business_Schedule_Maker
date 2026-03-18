@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 from backend.app.database import create_db_and_tables
 from pydantic import BaseModel
 from sqlmodel import Session, select
-from backend.app.schema import Manager, Branch, EmployeeDB
+from backend.app.schema import Manager, Branch, EmployeeDB, CustomRule
 from backend.app.database import get_session
+from backend.app.ai_agent import process_chat_message
+import random
 
 
 app = FastAPI(title="Bank Scheduler API")
@@ -115,6 +117,27 @@ def update_branch_settings(branch_id: int, payload: BranchSettingsPayload, sessi
     return branch
 
 # ===============================================================================
+# CUSTOM AI RULES ENDPOINTS
+
+@app.get("/api/branches/{branch_id}/rules")
+def get_branch_rules(branch_id: int, session: Session = Depends(get_session)):
+    """Fetches all active AI rules for the specific branch."""
+    statement = select(CustomRule).where(CustomRule.branch_id == branch_id)
+    rules = session.exec(statement).all()
+    return {"rules": rules}
+
+@app.delete("/api/rules/{rule_id}")
+def delete_custom_rule(rule_id: int, session: Session = Depends(get_session)):
+    """Allows the manager to manually delete an AI-generated rule."""
+    rule = session.get(CustomRule, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+        
+    session.delete(rule)
+    session.commit()
+    return {"message": "Rule successfully deleted"}
+
+# ===============================================================================
 
 class EmployeeCreatePayload(BaseModel):
     name: str
@@ -185,19 +208,40 @@ def delete_employee(employee_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"message": "Employee successfully fired"}
 
+# ===============================================================================
+# AI CHAT ENDPOINT
+
+class ChatPayload(BaseModel):
+    message: str
+    branch_id: int
+
+@app.post("/api/chat")
+def handle_chat(payload: ChatPayload):
+    """Receives chat messages from the frontend and sends them to the Gemini Agent."""
+    try:
+        reply = process_chat_message(payload.message, payload.branch_id)
+        return {"reply": reply}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ================================================================================
 
 @app.get("/api/branches/{branch_id}/schedule")
 def generate_branch_schedule(branch_id: int, session: Session = Depends(get_session)):
     """Pulls the roster from SQL, formats it to Pydantic models, and runs the Math Engine."""
     
-    # 1. Fetch the branch and its employees
+    # 1. Fetch the branch, employees, AND AI Rules
     branch = session.get(Branch, branch_id)
     if not branch:
         raise HTTPException(status_code=404, detail="Branch not found.")
         
     statement = select(EmployeeDB).where(EmployeeDB.branch_id == branch_id)
     employees = session.exec(statement).all()
+    
+    # THE FIX: Grab all active custom AI rules for this specific branch
+    rule_statement = select(CustomRule).where(CustomRule.branch_id == branch_id)
+    active_rules = session.exec(rule_statement).all()
     
     if not employees:
         raise HTTPException(status_code=400, detail="Cannot generate a schedule with an empty roster!")
@@ -208,48 +252,64 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
     except ValueError:
         loc_enum = Location.PARAMUS # Safe fallback just in case
         
-    # 3. Translate SQL Employees -> Pydantic Employees
+    # 3. Translate SQL Employees -> Pydantic Employees & Inject AI Rules
     pydantic_employees = []
     for emp in employees:
-        # Translate comma-separated string back to Skill Enums
+        # Translate skills
         parsed_skills = []
         if emp.skills:
             for s in emp.skills.split(","):
                 try:
                     parsed_skills.append(Skill(s.strip()))
                 except ValueError:
-                    continue # Skip if there's a typo in the DB
+                    continue 
+
+        # Combine static unavailable days with our new AI Custom Rules!
+        unavail_days = emp.unavailable_days.split(",") if emp.unavailable_days else []
+        for rule in active_rules:
+            # If the AI wrote a time_off rule for this specific employee, enforce it!
+            if rule.rule_type == "time_off" and rule.employee_id == emp.id:
+                unavail_days.append(rule.target_date)
 
         pydantic_employees.append(Employee(
             id=str(emp.id),
             name=emp.name,
             home_location=loc_enum,
             is_full_time=emp.is_full_time,
-            skills=parsed_skills, # THE FIX: Hand the solver the real skills!
+            skills=parsed_skills, 
             min_hours_per_week=float(emp.min_hours),
             max_hours_per_week=float(emp.max_hours),
             max_days_per_week=5,
             required_work_days=[],
-            unavailable_days=emp.unavailable_days.split(",") if emp.unavailable_days else []
+            unavailable_days=unavail_days # THE FIX: Hand the combined list to the C++ solver!
         ))
 
     # 4. Define Default Shifts (The times people are allowed to work)
     # Note: Paid minutes subtract a 30-minute unpaid lunch where applicable
     weekday_shifts = [
-        # 8:00 AM - 5:30 PM (9 paid hours -> 540 minutes)
-        ShiftTemplate(id="open_800", start_time="08:00", end_time="17:30", paid_minutes=540, is_opening_shift=True),
-        
-        # 8:15 AM - 5:30 PM (8.75 paid hours -> 525 minutes)
-        ShiftTemplate(id="mid_815", start_time="08:15", end_time="17:30", paid_minutes=525, is_opening_shift=False),
-        
-        # 8:30 AM - 5:30 PM (8.5 paid hours -> 510 minutes)
-        ShiftTemplate(id="mid_830", start_time="08:30", end_time="17:30", paid_minutes=510, is_opening_shift=False)
+        # --- FULL CLOSING SHIFTS (Ends at 5:30 PM, 30-min lunch deducted) ---
+        ShiftTemplate(id="open_to_530", start_time="08:00", end_time="17:30", paid_minutes=540, is_opening_shift=True, is_closing_shift=True),
+        ShiftTemplate(id="mid_815_to_530", start_time="08:15", end_time="17:30", paid_minutes=525, is_opening_shift=False, is_closing_shift=True),
+        ShiftTemplate(id="mid_830_to_530", start_time="08:30", end_time="17:30", paid_minutes=510, is_opening_shift=False, is_closing_shift=True),
+
+        # --- MID-DAY SHIFTS (Ends at 3:30 PM, 30-min lunch deducted) ---
+        ShiftTemplate(id="open_to_330", start_time="08:00", end_time="15:30", paid_minutes=420, is_opening_shift=True),
+        ShiftTemplate(id="mid_815_to_330", start_time="08:15", end_time="15:30", paid_minutes=405, is_opening_shift=False),
+        ShiftTemplate(id="mid_830_to_330", start_time="08:30", end_time="15:30", paid_minutes=390, is_opening_shift=False),
+
+        # --- EARLY DEPARTURE SHIFTS (Ends at 2:00 PM, NO lunch deducted) ---
+        ShiftTemplate(id="open_to_200", start_time="08:00", end_time="14:00", paid_minutes=360, is_opening_shift=True),
+        ShiftTemplate(id="mid_815_to_200", start_time="08:15", end_time="14:00", paid_minutes=345, is_opening_shift=False),
+        ShiftTemplate(id="mid_830_to_200", start_time="08:30", end_time="14:00", paid_minutes=330, is_opening_shift=False),
+
+        # --- HALF-DAY SHIFT (Ends at 12:30 PM, NO lunch deducted) ---
+        ShiftTemplate(id="half_open_800", start_time="08:00", end_time="12:30", paid_minutes=270, is_opening_shift=True)
     ]
     
     # Saturday has exactly one shift, and it acts as the opening shift!
     # 8:30 AM - 12:30 PM (4 paid hours -> 240 minutes)
     saturday_shifts = [
-        ShiftTemplate(id="sat_open_830", start_time="08:30", end_time="12:30", paid_minutes=240, is_opening_shift=True)
+        ShiftTemplate(id="sat_open_830", start_time="08:30", end_time="12:30", paid_minutes=240, is_opening_shift=True, is_closing_shift=True)
     ]
 
     # 5. Define Daily Requirements for the Solver
@@ -257,6 +317,12 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
     daily_reqs = []
     
     for d in days:
+        # Check if the AI wrote a rule capping the openers for this specific day (or "All" days)
+        day_max_openers = None
+        for rule in active_rules:
+            if rule.rule_type == "cap_openers" and (rule.target_date == d or rule.target_date == "All"):
+                day_max_openers = rule.value
+
         daily_reqs.append(DailyRequirement(
             day_of_week=d,
             location=loc_enum,
@@ -264,28 +330,46 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
             requires_combo_a_open=1,
             requires_combo_b_open=1,
             requires_vault=1, 
-            requires_atm_open=1 if d == "Monday" else 0, # Only demand an ATM opener on Monday!
+            requires_atm_open=1 if d == "Monday" else 0,
+            
+            max_openers=day_max_openers if d != "Saturday" else None, 
             allowed_shifts=saturday_shifts if d == "Saturday" else weekday_shifts
         ))
 
-    # 6. Build the final payload and run the solver!
+    # 6. Build the payload and run the Negotiator Loop!
+    
+    # Shuffle the deck so the deterministic solver doesn't play favorites!
+    random.shuffle(pydantic_employees)
+
     try:
-        payload = ScheduleRequestPayload(
-            week_start_date="2026-03-16",
-            employees=pydantic_employees,
-            daily_requirements=daily_reqs
-        )
+        # Start by aggressively trying to prevent 3 days in a row (max allowed = 2)
+        current_max_consecutive = 2 
         
-        schedule = generate_schedule(payload)
-        
-        # --- NEW FIX: Catch the Math Engine's text errors! ---
-        if isinstance(schedule, str):
-            raise HTTPException(status_code=400, detail=f"Math Engine Failed: {schedule}")
-        # -----------------------------------------------------
+        while current_max_consecutive <= 6:
+            payload = ScheduleRequestPayload(
+                week_start_date="2026-03-16",
+                employees=pydantic_employees,
+                daily_requirements=daily_reqs,
+                max_consecutive_openings=current_max_consecutive # Inject the current strictness!
+            )
             
-        return {"schedule": schedule}
+            print(f"🔄 Attempting to solve with max consecutive openings: {current_max_consecutive}")
+            schedule = generate_schedule(payload)
+            
+            # If the solver returns a string, it means it failed (INFEASIBLE).
+            if isinstance(schedule, str):
+                print(f"❌ Failed. Relaxing rule to {current_max_consecutive + 1}...")
+                current_max_consecutive += 1 # Relax the rule and loop again!
+            else:
+                # We found a valid schedule!
+                print("✅ Feasible schedule found!")
+                return {"schedule": schedule}
+                
+        # If it loops all the way to 6 and STILL fails, something else is broken.
+        raise HTTPException(status_code=400, detail="Math Engine Failed: Could not find a schedule even after relaxing consecutive days.")
+        
     except HTTPException:
-        raise # Let our specific HTTP exceptions pass through cleanly
+        raise 
     except Exception as e:
         import traceback
         traceback.print_exc()
