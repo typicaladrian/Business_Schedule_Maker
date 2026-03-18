@@ -25,10 +25,13 @@ async def lifespan(app: FastAPI):
 # Update your FastAPI app initialization to include the lifespan
 app = FastAPI(title="Bank Scheduler API", lifespan=lifespan)
 
-# NEW: Enable CORS so our Next.js frontend can talk to this API
+# Enable CORS so our Next.js frontend can talk to this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://business-schedule-maker.vercel.app"],
+    allow_origins=[
+        "https://aischeduler.typicaladrian.dev", 
+        "http://localhost:3000"
+    ], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
