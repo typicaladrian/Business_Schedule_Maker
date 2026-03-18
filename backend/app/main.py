@@ -28,7 +28,7 @@ app = FastAPI(title="Bank Scheduler API", lifespan=lifespan)
 # NEW: Enable CORS so our Next.js frontend can talk to this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://business-schedule-maker.vercel.app/"],
+    allow_origins=["https://business-schedule-maker.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
