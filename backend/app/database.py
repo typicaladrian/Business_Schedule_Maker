@@ -1,19 +1,24 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
-from backend.app.schema import Manager, Branch, EmployeeDB
+from dotenv import load_dotenv
 
-# Create a local SQLite database file named 'app.db'
-sqlite_file_name = "app.db"
-sqlite_url = f"sqlite:///{os.path.join(os.path.dirname(__file__), sqlite_file_name)}"
+# 1. Load the hidden variables from your .env file
+load_dotenv()
 
-# The Engine is the core connection point to the database
-engine = create_engine(sqlite_url, echo=True)
+# 2. Grab the Neon URL
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is missing!")
+
+# 3. Create the Postgres engine
+engine = create_engine(DATABASE_URL, echo=True)
+
+# 4. THE MISSING FUNCTION: This tells SQLModel to build the tables!
 def create_db_and_tables():
-    """Tells SQLModel to inspect our schema and build the actual SQL tables."""
     SQLModel.metadata.create_all(engine)
 
+# 5. Dependency for your endpoints
 def get_session():
-    """A helper function we will use in FastAPI endpoints to talk to the DB."""
     with Session(engine) as session:
         yield session

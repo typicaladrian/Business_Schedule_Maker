@@ -3,8 +3,8 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from sqlmodel import Session, select
-from backend.app.database import engine # Make sure engine is importable from your database.py!
-from backend.app.schema import EmployeeDB, CustomRule
+from app.database import engine # Make sure engine is importable from your database.py!
+from app.schema import EmployeeDB, CustomRule
 
 load_dotenv()
 

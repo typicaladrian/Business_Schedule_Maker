@@ -1,16 +1,16 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.models import Employee, DailyRequirement, ShiftTemplate, Location, ScheduleRequestPayload, Skill
-from backend.app.solver import generate_schedule
+from app.models import Employee, DailyRequirement, ShiftTemplate, Location, ScheduleRequestPayload, Skill
+from app.solver import generate_schedule
 from pydantic import BaseModel
 import traceback
 from contextlib import asynccontextmanager
-from backend.app.database import create_db_and_tables
+from app.database import create_db_and_tables
 from pydantic import BaseModel
 from sqlmodel import Session, select
-from backend.app.schema import Manager, Branch, EmployeeDB, CustomRule
-from backend.app.database import get_session
-from backend.app.ai_agent import process_chat_message
+from app.schema import Manager, Branch, EmployeeDB, CustomRule
+from app.database import get_session
+from app.ai_agent import process_chat_message
 import random
 
 

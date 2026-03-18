@@ -1,5 +1,5 @@
 from ortools.sat.python import cp_model
-from backend.app.models import ScheduleRequestPayload, Skill
+from app.models import ScheduleRequestPayload, Skill
 import random
 
 def generate_schedule(payload: ScheduleRequestPayload):
