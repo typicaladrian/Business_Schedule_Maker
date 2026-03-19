@@ -388,7 +388,7 @@ export default function Home() {
           Please visit this site on a desktop or laptop computer for the full experience.
         </p>
       </div>
-      
+
       <div className="hidden md:block p-8">
         {/* --- WELCOME & ABOUT ME MODAL (PROFESSIONAL VERSION) --- */}
         {showWelcome && (
@@ -525,25 +525,6 @@ export default function Home() {
                 </div>
               </div>
             </Show>
-
-            {/* --- NOTIFICATION BANNERS --- */}
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded shadow-sm mb-6 flex items-center">
-                <span className="text-xl mr-2">⚠️</span>
-                <div>
-                  <span className="font-bold">Generation Failed: </span>
-                  {error}
-                </div>
-              </div>
-            )}
-            
-            {successMsg && (
-              <div className="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 px-4 py-3 rounded shadow-sm mb-6 flex items-center">
-                <span className="text-xl mr-2">✅</span>
-                <span className="font-medium">{successMsg}</span>
-              </div>
-            )}
-            {/* ---------------------------- */}
 
             {/* ---------------------------------------------------------------- */}
             {/* SECTION 1: BRANCH MANAGEMENT (Only visible if logged in)           */}
@@ -1004,6 +985,25 @@ export default function Home() {
               </div>
             </div>
 
+            {/* --- NOTIFICATION BANNERS --- */}
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded shadow-sm mb-6 flex items-center">
+                <span className="text-xl mr-2">⚠️</span>
+                <div>
+                  <span className="font-bold">Generation Failed: </span>
+                  {error}
+                </div>
+              </div>
+            )}
+            
+            {successMsg && (
+              <div className="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 px-4 py-3 rounded shadow-sm mb-6 flex items-center">
+                <span className="text-xl mr-2">✅</span>
+                <span className="font-medium">{successMsg}</span>
+              </div>
+            )}
+            {/* ----------------------------------------- */}
+
             {schedule ? (
               <div className="space-y-6">
                 
@@ -1068,7 +1068,7 @@ export default function Home() {
 
                                   {/* 2. The Minimalist Skill Badges */}
                                   <div className="flex gap-1 ml-1">
-                                    {/* THE FIX: Wrap both IDs in String() to safely compare them! */}
+                                    {/* Wrap both IDs in String() to safely compare them! */}
                                     {roster.find(r => String(r.id) === String(shift.employee_id))?.skills?.split(",").map((skill: string, idx: number) => {
                                       const s = skill.trim();
                                       if (!s) return null;
