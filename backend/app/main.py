@@ -322,9 +322,14 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
     for d in days:
         # Check if the AI wrote a rule capping the openers for this specific day (or "All" days)
         day_max_openers = None
+        day_max_headcount = None
+        
         for rule in active_rules:
             if rule.rule_type == "cap_openers" and (rule.target_date == d or rule.target_date == "All"):
                 day_max_openers = rule.value
+
+            if rule.rule_type == "max_headcount" and (rule.target_date == d or rule.target_date == "All"):
+                day_max_headcount = rule.value
 
         daily_reqs.append(DailyRequirement(
             day_of_week=d,
@@ -334,7 +339,7 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
             requires_combo_b_open=1,
             requires_vault=1, 
             requires_atm_open=1 if d == "Monday" else 0,
-            
+            max_total_headcount=day_max_headcount,
             max_openers=day_max_openers if d != "Saturday" else None, 
             allowed_shifts=saturday_shifts if d == "Saturday" else weekday_shifts
         ))

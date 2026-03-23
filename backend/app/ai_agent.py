@@ -73,6 +73,23 @@ def cap_openers(max_openers: int, day_of_week: str, branch_id: int) -> str:
         
         return f"Successfully capped openers to {max_openers} on {day_of_week}. Tell the user it's saved to the Custom Rules dashboard and they should regenerate the schedule."
 
+def limit_daily_headcount(max_employees: int, day_of_week: str, branch_id: int) -> str:
+    """Call this tool when a manager wants to limit the maximum total number of employees working on a specific day."""
+    print(f"\n[SYSTEM ACTION]: Capping headcount to {max_employees} on {day_of_week} for branch {branch_id}...")
+    
+    with Session(engine) as session:
+        rule = CustomRule(
+            rule_type="max_headcount",
+            target_date=day_of_week,
+            description=f"Maximum of {max_employees} employees allowed to work on {day_of_week}.",
+            value=max_employees,
+            branch_id=branch_id
+        )
+        session.add(rule)
+        session.commit()
+        
+        return f"Successfully capped total headcount to {max_employees} on {day_of_week}. Tell the user it's saved and they should regenerate the schedule."
+
 # --- AI INITIALIZATION ---
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))

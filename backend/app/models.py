@@ -42,7 +42,8 @@ class DailyRequirement(BaseModel):
     requires_combo_b_open: int = 1
     requires_vault: int = 1
     requires_atm_open: int = 0  # Defaults to 0 so we don't accidentally require it every day!
-    max_openers: Optional[int] = None #Defaults to None (unlimited) unless the AI sets a cap!
+    max_openers: Optional[int] = None # Defaults to None (unlimited) unless the AI sets a cap!
+    max_total_headcount: Optional[int] = None # Defaults to None (unlimited) unless the AI sets a cap!
     allowed_shifts: List[ShiftTemplate] = Field(default_factory=list)
 
 class ScheduleRequestPayload(BaseModel):

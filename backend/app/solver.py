@@ -98,6 +98,11 @@ def generate_schedule(payload: ScheduleRequestPayload):
         # 1. Base Headcount
         model.Add(sum(worked_day[(emp.id, day)] for emp in available_staff) >= req.min_headcount)
         
+        # 1.5 Max Headcount for a given day Rule (Maximum)
+        if req.max_total_headcount is not None:
+            # MATH ENGINE STRICT LIMIT: Sum of all employees working this day cannot exceed the cap
+            model.Add(sum(worked_day[(emp.id, day)] for emp in available_staff) <= req.max_total_headcount)
+
         # 2. Vault Presence (Anytime during the day)
         vault_staff = [emp for emp in available_staff if Skill.VAULT in emp.skills]
         model.Add(sum(worked_day[(emp.id, day)] for emp in vault_staff) >= req.requires_vault)

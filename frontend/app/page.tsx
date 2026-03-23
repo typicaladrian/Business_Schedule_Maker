@@ -34,9 +34,25 @@ export default function Home() {
     { role: "ai", content: "Hello! I am your AI Scheduling Assistant. You can ask me to generate a schedule, or tell me if an employee needs time off." }
   ]);
 
-  // NEW: Clerk User Hook
+  // Clerk User Hook
   const { isLoaded, isSignedIn, user } = useUser();
   const [managerId, setManagerId] = useState<number | null>(null);
+
+  // Dynamically update the AI greeting based on login status
+  useEffect(() => {
+    // Only update the greeting if the user hasn't started chatting yet
+    if (isLoaded && messages.length <= 1) {
+      if (isSignedIn) {
+        setMessages([
+          { role: "ai", content: "Hello! I am your AI Scheduling Assistant. You can ask me to generate a schedule, or tell me if an employee needs time off." }
+        ]);
+      } else {
+        setMessages([
+          { role: "ai", content: "Welcome! I am your AI Scheduling Assistant. Please click 'Manager Login' at the top of the screen to connect your branches and get started." }
+        ]);
+      }
+    }
+  }, [isLoaded, isSignedIn]);
 
   // Branch States
   const [branches, setBranches] = useState<any[]>([]);
@@ -61,6 +77,10 @@ export default function Home() {
 
   // AI Rules State
   const [customRules, setCustomRules] = useState<any[]>([]);
+
+  // --- Cold Start UI States ---
+  const [showBanner, setShowBanner] = useState(true);
+  const [showColdStartInfo, setShowColdStartInfo] = useState(false);
 
   // Welcome Modal State
   const [showWelcome, setShowWelcome] = useState(false);
@@ -390,6 +410,69 @@ export default function Home() {
       </div>
 
       <div className="hidden md:block p-8">
+        {/* --- COLD START BANNER --- */}
+        {showBanner && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center justify-between shadow-sm transition-all">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">⏳</span>
+              <p className="text-sm font-medium text-amber-800">
+                Notice: If your branches or employees do not load immediately, the cloud backend is currently waking up. Please wait 60 seconds and refresh.
+                <button 
+                  onClick={() => setShowColdStartInfo(true)}
+                  className="ml-2 underline text-amber-600 hover:text-amber-900 font-bold transition-colors"
+                >
+                  Why does this happen?
+                </button>
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowBanner(false)}
+              className="text-amber-500 hover:text-amber-700 font-bold text-lg px-2"
+              title="Dismiss"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
+        {/* --- COLD START EXPLANATION MODAL --- */}
+        {showColdStartInfo && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+              <div className="bg-slate-800 px-6 py-4 flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-white tracking-wide flex items-center gap-2">
+                  <span>☁️</span> Note on Cloud Architecture
+                </h2>
+                <button 
+                  onClick={() => setShowColdStartInfo(false)}
+                  className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="p-6 text-slate-700 space-y-4 text-sm leading-relaxed">
+                <p>
+                  To keep this portfolio project resource-efficient, the Python backend is hosted on a scaled-to-zero cloud container (via Render). 
+                </p>
+                <p>
+                  <strong>What does this mean?</strong><br/>
+                  If the application receives no API traffic for 15 minutes, the server automatically spins down to conserve compute resources. When a new user logs in, the server experiences a <strong>"Cold Start"</strong>—it takes about 50 to 60 seconds for the container to provision, boot up the FastAPI server, and re-establish the PostgreSQL database connection.
+                </p>
+                <p>
+                  In a true enterprise production environment, this service would be provisioned on a dedicated, always-on instance. Thank you for your patience as the server wakes up!
+                </p>
+              </div>
+              <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex justify-end">
+                <button 
+                  onClick={() => setShowColdStartInfo(false)}
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 px-6 rounded-lg text-sm shadow-sm transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* --- WELCOME & ABOUT ME MODAL (PROFESSIONAL VERSION) --- */}
         {showWelcome && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -1113,9 +1196,16 @@ export default function Home() {
 
           {/* RIGHT COLUMN: AI Chat Assistant */}
           <div className="w-96 bg-white rounded-xl shadow-md border border-gray-200 flex flex-col h-[calc(100vh-4rem)] sticky top-8">
-            <div className="bg-blue-900 text-white px-6 py-4 rounded-t-xl">
-              <h2 className="font-bold text-lg">AI Assistant</h2>
-              <p className="text-blue-200 text-sm">Powered by Gemini</p>
+            <div className="bg-slate-900 text-white px-6 py-4 rounded-t-xl relative overflow-hidden">
+              <h2 className="font-bold text-lg relative z-10 flex items-center gap-2">
+                AI Assistant
+              </h2>
+              <p className="text-sm font-medium mt-0.5 relative z-10 text-slate-300">
+                Powered by{' '}
+                <span className="bg-linear-to-r from-blue-400 via-purple-400 to-rose-400 text-transparent bg-clip-text drop-shadow-[0_0_12px_rgba(192,132,252,0.8)] font-bold tracking-wide">
+                  Gemini
+                </span>
+              </p>
             </div>
             
             <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50">
