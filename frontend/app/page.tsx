@@ -511,11 +511,19 @@ export default function Home() {
                       Hi, I'm Adrian Rodriguez.
                     </p>
                     <p className="text-sm leading-relaxed text-slate-600">
-                      Thank you for checking out this project. I built this AI-powered scheduling engine to solve complex, real-world operational bottlenecks using mathematically optimized constraints and deterministic solvers.
+                      I love solving real-world problems using software and AI. I built this scheduling engine to eliminate a complex operational bottleneck using mathematically optimized constraints and deterministic solvers.
                     </p>
                     <p className="text-sm leading-relaxed text-slate-600">
                       I hold a BS in Computer Science from Rensselaer Polytechnic Institute and am currently pursuing my MS in Cybersecurity and Information Assurance at WGU. I am actively seeking roles as a Cyber Security Analyst or in Software Engineering.
                     </p>
+                    <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 rounded-r-lg mt-2">
+                      <p className="text-sm font-medium text-indigo-900">
+                        Have a complex workflow or operational headache? 
+                      </p>
+                      <p className="text-xs text-indigo-700 mt-1">
+                        I am always looking for new architectural challenges. Feel free to use the email link below to pitch me an idea or problem you'd like to see solved!
+                      </p>
+                    </div>
                   </div>
                 </div>
                 
