@@ -58,6 +58,10 @@ export default function Home() {
   const [branches, setBranches] = useState<any[]>([]);
   const [newBranchName, setNewBranchName] = useState("");
   const [isCreatingBranch, setIsCreatingBranch] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
+  
+  // Detect if the demo branch is already loaded
+  const hasDemoBranch = branches.some(b => b.name === "🌟 Paramus Flagship (Demo)");
 
   // Roster States
   const [activeBranch, setActiveBranch] = useState<any>(null);
@@ -73,7 +77,7 @@ export default function Home() {
   
   // Branch Settings States
   const [showSettings, setShowSettings] = useState(false);
-  const [branchHeadcount, setBranchHeadcount] = useState(5);
+  const [branchHeadcount, setBranchHeadcount] = useState(3);
 
   // AI Rules State
   const [customRules, setCustomRules] = useState<any[]>([]);
@@ -636,35 +640,63 @@ export default function Home() {
                   <div className="text-gray-500 mb-4">You don't have any branches set up yet.</div>
                 )}
 
-                {/* Form to create a new branch */}
-                <div className="mt-6 flex gap-3">
-                  <input 
-                    type="text" 
-                    value={newBranchName}
-                    onChange={(e) => setNewBranchName(e.target.value)}
-                    placeholder="e.g. Paramus Branch" 
-                    className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button 
+                {/* Form to create a new branch OR load demo data */}
+                <div className="mt-6 flex flex-wrap gap-3 items-center">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      placeholder="e.g. Paramus Branch" 
+                      className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <button 
+                      onClick={async () => {
+                        if (!newBranchName.trim()) return;
+                        setIsCreatingBranch(true);
+                        const res = await fetch(`${API_URL}/api/branches`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: newBranchName, manager_id: managerId })
+                        });
+                        if (res.ok) {
+                          const newBranch = await res.json();
+                          setBranches([...branches, newBranch]);
+                          setNewBranchName("");
+                        }
+                        setIsCreatingBranch(false);
+                      }}
+                      disabled={isCreatingBranch || !newBranchName.trim()}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-lg shadow-sm disabled:bg-gray-400 text-sm transition-colors"
+                    >
+                      {isCreatingBranch ? "Creating..." : "Create Branch"}
+                    </button>
+                  </div>
+                  
+                  {/* --- NEW DEMO BUTTON --- */}
+                  <div className="hidden sm:block w-px h-8 bg-gray-200 mx-2"></div>
+                  
+                  <button
                     onClick={async () => {
-                      if (!newBranchName.trim()) return;
-                      setIsCreatingBranch(true);
-                      const res = await fetch(`${API_URL}/api/branches`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name: newBranchName, manager_id: managerId })
+                      setIsSeeding(true);
+                      const res = await fetch(`${API_URL}/api/managers/${managerId}/seed`, {
+                        method: "POST"
                       });
                       if (res.ok) {
-                        const newBranch = await res.json();
-                        setBranches([...branches, newBranch]);
-                        setNewBranchName("");
+                        const data = await res.json();
+                        setBranches([...branches, data.branch]);
+                        setActiveBranch(data.branch); 
                       }
-                      setIsCreatingBranch(false);
+                      setIsSeeding(false);
                     }}
-                    disabled={isCreatingBranch || !newBranchName.trim()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-lg shadow-md disabled:bg-gray-400"
+                    disabled={isSeeding || hasDemoBranch}
+                    className={`font-semibold py-2 px-4 rounded-lg shadow-sm text-sm transition-colors flex items-center gap-2 ${
+                      hasDemoBranch 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-not-allowed' 
+                        : 'bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50'
+                    }`}
                   >
-                    {isCreatingBranch ? "Creating..." : "Create Branch"}
+                    {hasDemoBranch ? "✅ Demo Branch Loaded" : (isSeeding ? "⏳ Loading..." : "✨ Load 1-Click Demo Branch")}
                   </button>
                 </div>
               </div>
@@ -682,8 +714,8 @@ export default function Home() {
                   </h2>
                   <button 
                     onClick={() => {
-                      // Load the current setting from the branch, defaulting to 5 if undefined
-                      setBranchHeadcount(activeBranch.min_daily_headcount || 5);
+                      // Load the current setting from the branch, defaulting to 3 if undefined
+                      setBranchHeadcount(activeBranch.min_daily_headcount || 3);
                       setShowSettings(!showSettings);
                     }}
                     className="text-gray-600 hover:text-gray-900 flex items-center gap-1.5 text-sm font-medium bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-md transition-colors shadow-sm border border-gray-200"
@@ -694,48 +726,74 @@ export default function Home() {
 
                 {/* SETTINGS PANEL (Only visible when toggled) */}
                 {showSettings && (
-                  <div className="mb-6 bg-slate-100 p-4 rounded-lg border border-slate-200 shadow-inner flex items-end gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
-                        Minimum Daily Employees
-                      </label>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        max="20"
-                        title="Minimum daily employees required"
-                        placeholder="e.g. 5"
-                        value={branchHeadcount}
-                        onChange={(e) => setBranchHeadcount(parseInt(e.target.value) || 1)}
-                        className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-700"
-                      />
+                  <div className="mb-6 bg-slate-100 p-4 rounded-lg border border-slate-200 shadow-inner flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                    
+                    {/* Left Side: Standard Settings */}
+                    <div className="flex items-end gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">
+                          Minimum Daily Employees
+                        </label>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="20"
+                          title="Minimum daily employees required"
+                          placeholder="e.g. 3"
+                          value={branchHeadcount}
+                          onChange={(e) => setBranchHeadcount(parseInt(e.target.value) || 1)}
+                          className="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-700"
+                        />
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/settings`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ min_daily_headcount: branchHeadcount })
+                          });
+                          if (res.ok) {
+                            const updatedBranch = await res.json();
+                            setActiveBranch(updatedBranch); 
+                            setBranches(branches.map(b => b.id === updatedBranch.id ? updatedBranch : b));
+                            setShowSettings(false); 
+                          }
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-5 rounded-lg shadow-sm text-sm transition-colors"
+                      >
+                        Save Changes
+                      </button>
+                      <button 
+                        onClick={() => setShowSettings(false)}
+                        className="text-slate-500 hover:text-slate-700 text-sm font-medium px-2 py-2"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                    <button 
-                      onClick={async () => {
-                        const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/settings`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ min_daily_headcount: branchHeadcount })
-                        });
-                        if (res.ok) {
-                          const updatedBranch = await res.json();
-                          setActiveBranch(updatedBranch); // Update active branch state
-                          
-                          // Update the branch in the main branches array so it persists if they click around
-                          setBranches(branches.map(b => b.id === updatedBranch.id ? updatedBranch : b));
-                          setShowSettings(false); // Close the panel
-                        }
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-5 rounded-lg shadow-sm text-sm transition-colors"
-                    >
-                      Save Changes
-                    </button>
-                    <button 
-                      onClick={() => setShowSettings(false)}
-                      className="text-slate-500 hover:text-slate-700 text-sm font-medium px-2 py-2"
-                    >
-                      Cancel
-                    </button>
+
+                    {/* Right Side: THE DANGER ZONE */}
+                    <div className="border-t sm:border-t-0 sm:border-l border-slate-300 pt-4 sm:pt-0 sm:pl-4 flex items-end">
+                      <button 
+                        onClick={async () => {
+                          if (confirm(`🚨 DANGER: Are you sure you want to permanently delete ${activeBranch.name}? This will wipe all employees, custom rules, and data. This cannot be undone.`)) {
+                            const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}`, { method: "DELETE" });
+                            if (res.ok) {
+                              // Filter out the deleted branch from the state array
+                              const updatedBranches = branches.filter(b => b.id !== activeBranch.id);
+                              setBranches(updatedBranches);
+                              
+                              // Switch the active view to the next available branch, or null if empty
+                              setActiveBranch(updatedBranches.length > 0 ? updatedBranches[0] : null);
+                              setShowSettings(false);
+                            }
+                          }
+                        }}
+                        className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 hover:border-red-600 font-semibold py-2 px-4 rounded-lg shadow-sm text-sm transition-colors flex items-center gap-2"
+                      >
+                        🗑️ Delete Branch
+                      </button>
+                    </div>
+
                   </div>
                 )}
                 {/* ----------------------------------------- */}

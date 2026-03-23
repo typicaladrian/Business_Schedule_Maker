@@ -7,7 +7,7 @@ import traceback
 from contextlib import asynccontextmanager
 from app.database import create_db_and_tables
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from app.schema import Manager, Branch, EmployeeDB, CustomRule
 from app.database import get_session
 from app.ai_agent import process_chat_message
@@ -100,6 +100,55 @@ def get_branches(manager_id: int, session: Session = Depends(get_session)):
     branches = session.exec(statement).all()
     return {"branches": branches}
 
+@app.post("/api/managers/{manager_id}/seed")
+def seed_demo_data(manager_id: int, session: Session = Depends(get_session)):
+    """Instantly builds a fully staffed demo branch for testing."""
+    
+    # 1. Create the Demo Branch
+    demo_branch = Branch(name="🌟 Paramus Flagship (Demo)", manager_id=manager_id)
+    session.add(demo_branch)
+    session.commit()
+    session.refresh(demo_branch)
+
+    # 2. Create a perfectly balanced roster
+    employees = [
+        EmployeeDB(name="Adrian R.", is_full_time=True, min_hours=38, max_hours=40, skills="Combo A, Vault", branch_id=demo_branch.id),
+        EmployeeDB(name="Kristina M.", is_full_time=True, min_hours=38, max_hours=40, skills="Combo B, Vault", branch_id=demo_branch.id),
+        EmployeeDB(name="Sarah C.", is_full_time=False, min_hours=15, max_hours=25, skills="ATM", branch_id=demo_branch.id),
+        EmployeeDB(name="John S.", is_full_time=True, min_hours=38, max_hours=40, skills="Combo A, ATM", branch_id=demo_branch.id),
+        EmployeeDB(name="Emily Chen", is_full_time=False, min_hours=20, max_hours=30, skills="Combo B", branch_id=demo_branch.id),
+        EmployeeDB(name="Michael T.", is_full_time=True, min_hours=38, max_hours=40, skills="Vault", branch_id=demo_branch.id),
+    ]
+    session.add_all(employees)
+    session.commit()
+
+    # 3. Add a custom AI rule to show off the rules engine immediately!
+    # Explicitly query the database to get Sarah's newly generated Primary Key ID
+    statement = select(EmployeeDB).where(EmployeeDB.name == "Sarah C.", EmployeeDB.branch_id == demo_branch.id)
+    sarah = session.exec(statement).first()
+
+    if sarah:
+        demo_rule = CustomRule(
+            rule_type="time_off",
+            target_date="Saturday",
+            description="Sarah C. requested Saturday off.",
+            employee_id=sarah.id,
+            branch_id=demo_branch.id
+        )
+        session.add(demo_rule)
+        session.commit()
+
+    # Explicitly package the branch data so FastAPI doesn't drop the ID during JSON serialization
+    return {
+        "message": "Demo data seeded!", 
+        "branch": {
+            "id": demo_branch.id,
+            "name": demo_branch.name,
+            "manager_id": demo_branch.manager_id,
+            "min_daily_headcount": demo_branch.min_daily_headcount
+        }
+    }
+
 # ===============================================================================
 # BRANCH SETTINGS ENDPOINT
 
@@ -118,6 +167,29 @@ def update_branch_settings(branch_id: int, payload: BranchSettingsPayload, sessi
     session.commit()
     session.refresh(branch)
     return branch
+
+@app.delete("/api/branches/{branch_id}")
+def delete_branch(branch_id: int, session: Session = Depends(get_session)):
+    """Deletes a branch and safely cascades the deletion to all associated employees and rules."""
+    # Use session.get() for fast Primary Key lookups
+    branch = session.get(Branch, branch_id)
+    
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    # 1. Safely wipe all AI Custom Rules attached to this branch
+    rule_statement = delete(CustomRule).where(CustomRule.branch_id == branch_id)
+    session.exec(rule_statement)
+    
+    # 2. Safely wipe all Employees attached to this branch
+    emp_statement = delete(EmployeeDB).where(EmployeeDB.branch_id == branch_id)
+    session.exec(emp_statement)
+    
+    # 3. Finally, delete the empty branch
+    session.delete(branch)
+    session.commit()
+    
+    return {"message": f"Branch {branch_id} and all associated data deleted successfully."}
 
 # ===============================================================================
 # CUSTOM AI RULES ENDPOINTS
@@ -323,7 +395,7 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
         # Check if the AI wrote a rule capping the openers for this specific day (or "All" days)
         day_max_openers = None
         day_max_headcount = None
-        
+
         for rule in active_rules:
             if rule.rule_type == "cap_openers" and (rule.target_date == d or rule.target_date == "All"):
                 day_max_openers = rule.value
