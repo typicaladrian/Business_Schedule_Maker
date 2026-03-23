@@ -87,7 +87,7 @@ class BranchCreatePayload(BaseModel):
 @app.post("/api/branches")
 def create_branch(payload: BranchCreatePayload, session: Session = Depends(get_session)):
     """Creates a new branch assigned to the logged-in manager."""
-    new_branch = Branch(name=payload.name, manager_id=payload.manager_id)
+    new_branch = Branch(name=payload.name, manager_id=payload.manager_id, min_daily_headcount=3)
     session.add(new_branch)
     session.commit()
     session.refresh(new_branch)
@@ -105,7 +105,7 @@ def seed_demo_data(manager_id: int, session: Session = Depends(get_session)):
     """Instantly builds a fully staffed demo branch for testing."""
     
     # 1. Create the Demo Branch
-    demo_branch = Branch(name="🌟 Paramus Flagship (Demo)", manager_id=manager_id)
+    demo_branch = Branch(name="🌟 Paramus Flagship (Demo)", manager_id=manager_id, min_daily_headcount=3)
     session.add(demo_branch)
     session.commit()
     session.refresh(demo_branch)

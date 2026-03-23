@@ -1088,6 +1088,10 @@ export default function Home() {
                       <span className="text-emerald-500 mt-0.5">✔️</span>
                       <span><strong>Contract Limits:</strong> Strict enforcement of minimum/maximum weekly hours per employee.</span>
                     </li>
+                    <li className="flex items-start gap-2 text-sm text-slate-700">
+                      <span className="text-emerald-500 mt-0.5">✔️</span>
+                      <span><strong>Minimum Headcount:</strong> Minimum total headcount required. <i>Can be updated in "Branch Settings"!</i> </span>
+                    </li>
                   </ul>
                 </div>
                 
