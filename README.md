@@ -155,6 +155,23 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
+## Testing
+
+The backend has a 41-test pytest suite that runs in about 6 seconds. It uses a throwaway SQLite database and locally signed RS256 tokens in place of Clerk, so it never touches the real database, Clerk or Gemini.
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+| File | What it proves |
+| --- | --- |
+| `test_auth.py` | Missing, forged, expired, wrong-issuer and wrong-site tokens are rejected, and identity comes only from the token |
+| `test_isolation.py` | One manager can't read or change another manager's branches, employees, rules, schedules or chat, across 12 different routes |
+| `test_ai_tools.py` | The model never sees a branch ID, its writes land only in the bound branch, and it can't reach other branches' employees |
+| `test_scheduling.py` | Generated schedules satisfy dual control, vault, ATM, headcount and contract-hour constraints, AI-created rules are enforced, and the relaxation loop retries |
+
 ## Project structure
 
 ```
@@ -167,6 +184,7 @@ backend/
     models.py      Pydantic models for the solver's input
     schema.py      SQLModel tables: Manager, Branch, EmployeeDB, CustomRule
     database.py    Postgres engine and session dependency
+  tests/           pytest suite: auth, tenant isolation, AI tools, schedule constraints
   scripts/         Standalone solver and API test harnesses
 frontend/
   app/page.tsx     Dashboard: branches, roster, AI chat, schedule view, PDF export
