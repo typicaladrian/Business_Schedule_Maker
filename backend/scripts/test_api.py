@@ -10,10 +10,13 @@ from backend.scripts.test_data import payload
 # The URL where your FastAPI server is listening locally
 API_URL = "http://127.0.0.1:8000/generate-schedule"
 
+# The API requires a Clerk session token (copy one from the browser while signed in)
+CLERK_SESSION_TOKEN = os.getenv("CLERK_SESSION_TOKEN", "")
+
 print("Sending HTTP POST request to the local API...\n")
 
 # Send the Pydantic model as a JSON dictionary over the network
-response = requests.post(API_URL, json=payload.model_dump())
+response = requests.post(API_URL, json=payload.model_dump(), headers={"Authorization": f"Bearer {CLERK_SESSION_TOKEN}"})
 
 if response.status_code == 200:
     print("✅ API responded successfully!\n")

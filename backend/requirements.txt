@@ -6,3 +6,4 @@ python-dotenv
 google-genai
 ortools
 pydantic
+pyjwt[crypto]

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 
-import { UserButton, Show, SignInButton, useUser } from "@clerk/nextjs";
+import { UserButton, Show, SignInButton, useUser, useAuth } from "@clerk/nextjs";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -36,7 +36,16 @@ export default function Home() {
 
   // Clerk User Hook
   const { isLoaded, isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
   const [managerId, setManagerId] = useState<number | null>(null);
+
+  // Every API call carries the Clerk session token so the backend can verify who is asking
+  const apiFetch = async (path: string, init: RequestInit = {}) => {
+    const token = await getToken();
+    const headers = new Headers(init.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(`${API_URL}${path}`, { ...init, headers });
+  };
 
   // Dynamically update the AI greeting based on login status
   useEffect(() => {
@@ -112,11 +121,10 @@ export default function Home() {
     if (isSignedIn && user) {
       const syncManager = async () => {
         try {
-          const response = await fetch(`${API_URL}/api/managers/sync`, {
+          const response = await apiFetch(`/api/managers/sync`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              clerk_id: user.id,
               email: user.primaryEmailAddress?.emailAddress,
             }),
           });
@@ -127,7 +135,7 @@ export default function Home() {
             console.log("Successfully synced manager. DB ID:", data.manager_id);
             
             // Fetch their branches immediately!
-            const branchRes = await fetch(`${API_URL}/api/branches/${data.manager_id}`);
+            const branchRes = await apiFetch(`/api/branches/${data.manager_id}`);
             if (branchRes.ok) {
               const branchData = await branchRes.json();
               setBranches(branchData.branches);
@@ -153,7 +161,7 @@ export default function Home() {
   useEffect(() => {
     if (activeBranch) {
       const fetchRoster = async () => {
-        const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/employees`);
+        const res = await apiFetch(`/api/branches/${activeBranch.id}/employees`);
         if (res.ok) {
           const data = await res.json();
           setRoster(data.employees);
@@ -166,7 +174,7 @@ export default function Home() {
   // Fetch the live employee rules from the database
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/employees`);
+      const response = await apiFetch(`/api/employees`);
       if (response.ok) {
         const data = await response.json();
         setEmployees(data.employees);
@@ -180,7 +188,7 @@ export default function Home() {
   const fetchRules = async () => {
     if (!activeBranch) return;
     try {
-      const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/rules`);
+      const res = await apiFetch(`/api/branches/${activeBranch.id}/rules`);
       if (res.ok) {
         const data = await res.json();
         setCustomRules(data.rules);
@@ -212,7 +220,7 @@ export default function Home() {
     setSuccessMsg(""); // Clear previous success messages
     
     try {
-      const response = await fetch(`${API_URL}/api/branches/${activeBranch.id}/schedule`);
+      const response = await apiFetch(`/api/branches/${activeBranch.id}/schedule`);
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || "Failed to generate schedule.");
@@ -287,7 +295,7 @@ export default function Home() {
     setIsTyping(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await apiFetch(`/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -654,10 +662,10 @@ export default function Home() {
                       onClick={async () => {
                         if (!newBranchName.trim()) return;
                         setIsCreatingBranch(true);
-                        const res = await fetch(`${API_URL}/api/branches`, {
+                        const res = await apiFetch(`/api/branches`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ name: newBranchName, manager_id: managerId })
+                          body: JSON.stringify({ name: newBranchName })
                         });
                         if (res.ok) {
                           const newBranch = await res.json();
@@ -679,7 +687,7 @@ export default function Home() {
                   <button
                     onClick={async () => {
                       setIsSeeding(true);
-                      const res = await fetch(`${API_URL}/api/managers/${managerId}/seed`, {
+                      const res = await apiFetch(`/api/managers/${managerId}/seed`, {
                         method: "POST"
                       });
                       if (res.ok) {
@@ -747,7 +755,7 @@ export default function Home() {
                       </div>
                       <button 
                         onClick={async () => {
-                          const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}/settings`, {
+                          const res = await apiFetch(`/api/branches/${activeBranch.id}/settings`, {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ min_daily_headcount: branchHeadcount })
@@ -776,7 +784,7 @@ export default function Home() {
                       <button 
                         onClick={async () => {
                           if (confirm(`🚨 DANGER: Are you sure you want to permanently delete ${activeBranch.name}? This will wipe all employees, custom rules, and data. This cannot be undone.`)) {
-                            const res = await fetch(`${API_URL}/api/branches/${activeBranch.id}`, { method: "DELETE" });
+                            const res = await apiFetch(`/api/branches/${activeBranch.id}`, { method: "DELETE" });
                             if (res.ok) {
                               // Filter out the deleted branch from the state array
                               const updatedBranches = branches.filter(b => b.id !== activeBranch.id);
@@ -828,7 +836,7 @@ export default function Home() {
                       onClick={async () => {
                         if (!newEmpName.trim()) return;
                         setIsHiring(true);
-                        const res = await fetch(`${API_URL}/api/employees`, {
+                        const res = await apiFetch(`/api/employees`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ 
@@ -963,7 +971,7 @@ export default function Home() {
                                   <td className="px-6 py-2 text-right">
                                     <button 
                                       onClick={async () => {
-                                        const res = await fetch(`${API_URL}/api/employees/${emp.id}`, {
+                                        const res = await apiFetch(`/api/employees/${emp.id}`, {
                                           method: "PUT",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({
@@ -1027,7 +1035,7 @@ export default function Home() {
                                   <button 
                                     onClick={async () => {
                                       if (confirm(`Are you sure you want to fire ${emp.name}?`)) {
-                                        const res = await fetch(`${API_URL}/api/employees/${emp.id}`, { method: "DELETE" });
+                                        const res = await apiFetch(`/api/employees/${emp.id}`, { method: "DELETE" });
                                         if (res.ok) {
                                           setRoster(roster.filter(r => r.id !== emp.id));
                                         }
@@ -1114,7 +1122,7 @@ export default function Home() {
                           </div>
                           <button 
                             onClick={async () => {
-                              await fetch(`${API_URL}/api/rules/${rule.id}`, { method: "DELETE" });
+                              await apiFetch(`/api/rules/${rule.id}`, { method: "DELETE" });
                               fetchRules(); // Refresh the list!
                             }}
                             className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors"

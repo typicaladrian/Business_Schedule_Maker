@@ -11,6 +11,7 @@ from sqlmodel import Session, select, delete
 from app.schema import Manager, Branch, EmployeeDB, CustomRule
 from app.database import get_session
 from app.ai_agent import process_chat_message
+from app.auth import ALLOWED_ORIGINS, get_clerk_user_id, get_current_manager, get_owned_branch, require_branch_owner
 import random
 
 
@@ -28,10 +29,7 @@ app = FastAPI(title="Bank Scheduler API", lifespan=lifespan)
 # Enable CORS so our Next.js frontend can talk to this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://aischeduler.typicaladrian.dev", 
-        "http://localhost:3000"
-    ], 
+    allow_origins=ALLOWED_ORIGINS, 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +40,7 @@ def read_root():
     return {"message": "Bank Scheduler API is running."}
 
 @app.post("/generate-schedule")
-def create_schedule(payload: ScheduleRequestPayload):
+def create_schedule(payload: ScheduleRequestPayload, clerk_user_id: str = Depends(get_clerk_user_id)):
     # Pass the incoming JSON payload directly to our OR-Tools solver
     result = generate_schedule(payload)
     
@@ -52,23 +50,22 @@ def create_schedule(payload: ScheduleRequestPayload):
         # If the solver fails, return a 400 Bad Request error
         raise HTTPException(status_code=400, detail=result["message"])
 
-# The payload we expect from the frontend
+# The payload we expect from the frontend (the Clerk ID comes from the verified token, never the body)
 class ManagerSyncPayload(BaseModel):
-    clerk_id: str
     email: str
 
 @app.post("/api/managers/sync")
-def sync_manager(payload: ManagerSyncPayload, session: Session = Depends(get_session)):
+def sync_manager(payload: ManagerSyncPayload, clerk_user_id: str = Depends(get_clerk_user_id), session: Session = Depends(get_session)):
     """Checks if a manager exists. If not, creates them in the database."""
-    
+
     # 1. Search the database for this Clerk ID
-    statement = select(Manager).where(Manager.clerk_id == payload.clerk_id)
+    statement = select(Manager).where(Manager.clerk_id == clerk_user_id)
     manager = session.exec(statement).first()
     
     # 2. If they don't exist, create a new record!
     if not manager:
         print(f"👤 New Manager Detected! Creating account for: {payload.email}")
-        manager = Manager(clerk_id=payload.clerk_id, email=payload.email)
+        manager = Manager(clerk_id=clerk_user_id, email=payload.email)
         session.add(manager)
         session.commit()
         session.refresh(manager)
@@ -82,27 +79,33 @@ def sync_manager(payload: ManagerSyncPayload, session: Session = Depends(get_ses
 
 class BranchCreatePayload(BaseModel):
     name: str
-    manager_id: int
 
 @app.post("/api/branches")
-def create_branch(payload: BranchCreatePayload, session: Session = Depends(get_session)):
+def create_branch(payload: BranchCreatePayload, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Creates a new branch assigned to the logged-in manager."""
-    new_branch = Branch(name=payload.name, manager_id=payload.manager_id, min_daily_headcount=3)
+    new_branch = Branch(name=payload.name, manager_id=manager.id, min_daily_headcount=3)
     session.add(new_branch)
     session.commit()
     session.refresh(new_branch)
     return new_branch
 
+def require_self(manager_id: int, manager: Manager):
+    """Managers can only act on their own account."""
+    if manager_id != manager.id:
+        raise HTTPException(status_code=403, detail="You can only access your own branches.")
+
 @app.get("/api/branches/{manager_id}")
-def get_branches(manager_id: int, session: Session = Depends(get_session)):
+def get_branches(manager_id: int, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Fetches all branches owned by this manager."""
+    require_self(manager_id, manager)
     statement = select(Branch).where(Branch.manager_id == manager_id)
     branches = session.exec(statement).all()
     return {"branches": branches}
 
 @app.post("/api/managers/{manager_id}/seed")
-def seed_demo_data(manager_id: int, session: Session = Depends(get_session)):
+def seed_demo_data(manager_id: int, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Instantly builds a fully staffed demo branch for testing."""
+    require_self(manager_id, manager)
     
     # 1. Create the Demo Branch
     demo_branch = Branch(name="🌟 Paramus Flagship (Demo)", manager_id=manager_id, min_daily_headcount=3)
@@ -156,12 +159,8 @@ class BranchSettingsPayload(BaseModel):
     min_daily_headcount: int
 
 @app.put("/api/branches/{branch_id}/settings")
-def update_branch_settings(branch_id: int, payload: BranchSettingsPayload, session: Session = Depends(get_session)):
+def update_branch_settings(payload: BranchSettingsPayload, branch: Branch = Depends(get_owned_branch), session: Session = Depends(get_session)):
     """Updates the specific settings for a branch."""
-    branch = session.get(Branch, branch_id)
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
-        
     branch.min_daily_headcount = payload.min_daily_headcount
     session.add(branch)
     session.commit()
@@ -169,13 +168,8 @@ def update_branch_settings(branch_id: int, payload: BranchSettingsPayload, sessi
     return branch
 
 @app.delete("/api/branches/{branch_id}")
-def delete_branch(branch_id: int, session: Session = Depends(get_session)):
+def delete_branch(branch_id: int, branch: Branch = Depends(get_owned_branch), session: Session = Depends(get_session)):
     """Deletes a branch and safely cascades the deletion to all associated employees and rules."""
-    # Use session.get() for fast Primary Key lookups
-    branch = session.get(Branch, branch_id)
-    
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found")
 
     # 1. Safely wipe all AI Custom Rules attached to this branch
     rule_statement = delete(CustomRule).where(CustomRule.branch_id == branch_id)
@@ -195,18 +189,19 @@ def delete_branch(branch_id: int, session: Session = Depends(get_session)):
 # CUSTOM AI RULES ENDPOINTS
 
 @app.get("/api/branches/{branch_id}/rules")
-def get_branch_rules(branch_id: int, session: Session = Depends(get_session)):
+def get_branch_rules(branch_id: int, branch: Branch = Depends(get_owned_branch), session: Session = Depends(get_session)):
     """Fetches all active AI rules for the specific branch."""
     statement = select(CustomRule).where(CustomRule.branch_id == branch_id)
     rules = session.exec(statement).all()
     return {"rules": rules}
 
 @app.delete("/api/rules/{rule_id}")
-def delete_custom_rule(rule_id: int, session: Session = Depends(get_session)):
+def delete_custom_rule(rule_id: int, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Allows the manager to manually delete an AI-generated rule."""
     rule = session.get(CustomRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
+    require_branch_owner(session, rule.branch_id, manager)
         
     session.delete(rule)
     session.commit()
@@ -223,8 +218,9 @@ class EmployeeCreatePayload(BaseModel):
     skills: str = ""
 
 @app.post("/api/employees")
-def create_employee(payload: EmployeeCreatePayload, session: Session = Depends(get_session)):
+def create_employee(payload: EmployeeCreatePayload, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Hires a new employee and assigns them to a branch."""
+    require_branch_owner(session, payload.branch_id, manager)
     new_employee = EmployeeDB(
         name=payload.name,
         is_full_time=payload.is_full_time,
@@ -239,7 +235,7 @@ def create_employee(payload: EmployeeCreatePayload, session: Session = Depends(g
     return new_employee
 
 @app.get("/api/branches/{branch_id}/employees")
-def get_branch_employees(branch_id: int, session: Session = Depends(get_session)):
+def get_branch_employees(branch_id: int, branch: Branch = Depends(get_owned_branch), session: Session = Depends(get_session)):
     """Fetches the entire employee roster for a specific branch."""
     statement = select(EmployeeDB).where(EmployeeDB.branch_id == branch_id)
     employees = session.exec(statement).all()
@@ -255,11 +251,12 @@ class EmployeeUpdatePayload(BaseModel):
     skills: str = ""
 
 @app.put("/api/employees/{employee_id}")
-def update_employee(employee_id: int, payload: EmployeeUpdatePayload, session: Session = Depends(get_session)):
+def update_employee(employee_id: int, payload: EmployeeUpdatePayload, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Modifies an existing employee."""
     emp = session.get(EmployeeDB, employee_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
+    require_branch_owner(session, emp.branch_id, manager)
         
     emp.name = payload.name
     emp.is_full_time = payload.is_full_time
@@ -273,11 +270,12 @@ def update_employee(employee_id: int, payload: EmployeeUpdatePayload, session: S
     return emp
 
 @app.delete("/api/employees/{employee_id}")
-def delete_employee(employee_id: int, session: Session = Depends(get_session)):
+def delete_employee(employee_id: int, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Fires (deletes) an employee from the database."""
     emp = session.get(EmployeeDB, employee_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
+    require_branch_owner(session, emp.branch_id, manager)
         
     session.delete(emp)
     session.commit()
@@ -291,8 +289,9 @@ class ChatPayload(BaseModel):
     branch_id: int
 
 @app.post("/api/chat")
-def handle_chat(payload: ChatPayload):
+def handle_chat(payload: ChatPayload, manager: Manager = Depends(get_current_manager), session: Session = Depends(get_session)):
     """Receives chat messages from the frontend and sends them to the Gemini Agent."""
+    require_branch_owner(session, payload.branch_id, manager)
     try:
         reply = process_chat_message(payload.message, payload.branch_id)
         return {"reply": reply}
@@ -303,14 +302,10 @@ def handle_chat(payload: ChatPayload):
 # ================================================================================
 
 @app.get("/api/branches/{branch_id}/schedule")
-def generate_branch_schedule(branch_id: int, session: Session = Depends(get_session)):
+def generate_branch_schedule(branch_id: int, branch: Branch = Depends(get_owned_branch), session: Session = Depends(get_session)):
     """Pulls the roster from SQL, formats it to Pydantic models, and runs the Math Engine."""
-    
-    # 1. Fetch the branch, employees, AND AI Rules
-    branch = session.get(Branch, branch_id)
-    if not branch:
-        raise HTTPException(status_code=404, detail="Branch not found.")
-        
+
+    # 1. Fetch the employees AND AI Rules (get_owned_branch already loaded the branch and checked ownership)
     statement = select(EmployeeDB).where(EmployeeDB.branch_id == branch_id)
     employees = session.exec(statement).all()
     
@@ -436,8 +431,8 @@ def generate_branch_schedule(branch_id: int, session: Session = Depends(get_sess
             print(f"🔄 Attempting to solve with max consecutive openings: {current_max_consecutive}")
             schedule = generate_schedule(payload)
             
-            # If the solver returns a string, it means it failed (INFEASIBLE).
-            if isinstance(schedule, str):
+            # The solver reports INFEASIBLE through its status field
+            if schedule["status"] != "success":
                 print(f"❌ Failed. Relaxing rule to {current_max_consecutive + 1}...")
                 current_max_consecutive += 1 # Relax the rule and loop again!
             else:
